@@ -147,7 +147,7 @@ class URL:
         """
         return f"{self.base_url}/Instrument/GetInstrumentInfo/{ins_code}"
 
-    def hist_price(self, ins_code) -> str:
+    def hist_price(self, ins_code ,last_records: int =0 )  -> str:
         """
         .. raw:: html
 
@@ -164,7 +164,7 @@ class URL:
         -------
         url: str
         """
-        return f"{self.base_url}/ClosingPrice/GetClosingPriceDailyList/{ins_code}/0"
+        return f"{self.base_url}/ClosingPrice/GetClosingPriceDailyList/{ins_code}/{last_records}"
 
     def client_type(self, ins_code) -> str:
         """
@@ -252,6 +252,9 @@ class URL:
 
     def shareholder_history(self, ins_code, shareholder_id, last_records:int) -> str:
         return f"{self.base_url}/Shareholder/GetShareHolderHistory/{ins_code}/{shareholder_id}/{last_records}"
+
+    def shareholder_other_shares(self , shareholder_id : str) -> str:
+        return f"{self.base_url}/Shareholder/GetShareHolderCompanyList/{shareholder_id}"
 
     def tse_adjust_price_flow(self, last_records: int) -> str:
         return f"{self.base_url}/ClosingPrice/GetPriceAdjustByFlow/1/{last_records}"
@@ -685,8 +688,7 @@ class TSETMC:
         self,
         symbol: str | list[str] | None = None,
         ins_code: str | list[str] | None = None,
-        start: str | None = None,
-        end: str | None = None,
+        last_records:int = 0 
     ) -> pl.DataFrame:
         """
         .. raw:: html
@@ -731,15 +733,8 @@ class TSETMC:
         ins_code: str | list[str] | None
             کدِ صفحه‌یِ نماد
 
-        start: str, default None
-            تاریخِ شروع(جلالی).
-            اگه هیچی داده نشه، داده‌ها از روزِ اول استخراج می‌شن.
-                format: 'yyyymmdd', 'yyyy-mm-dd', 'yyyy/mm/dd', e.g. '1402-05-25'
-
-        end: str
-            تاریخِ پایان(جلالی).
-            اگه هیچی داده نشه، داده‌ها تا روزِ آخر استخراج می‌شن.
-                format: 'yyyymmdd', 'yyyy-mm-dd', 'yyyy/mm/dd', e.g. '1402-08-05'
+        last_records : int , default 0 
+            تعداد رکورد های تاریخی از زمان کنونی به گذشته که میخوای استخراج بشه. اگه 0 باشه، تمام رکورد های تاریخی استخراج میشه.
 
         Returns
         -------
@@ -790,7 +785,7 @@ class TSETMC:
         ins_code = symbol if symbol else ins_code
         if isinstance(ins_code, str):
             ins_code = [ins_code]
-        url = [self.url.hist_price(i) for i in ins_code]
+        url = [self.url.hist_price(i , last_records ) for i in ins_code]
         r = get(url)
         df = pl.DataFrame()
         for resp in r:
@@ -805,8 +800,8 @@ class TSETMC:
         self,
         symbol: str | list[str] | None = None,
         ins_code: str | list[str] | None = None,
-        start: str | None = None,
-        end: str | None = None,
+        last_records:int = 0 
+
     ) -> pl.DataFrame:
         """
         .. raw:: html
@@ -850,16 +845,9 @@ class TSETMC:
             نماد
         ins_code: str | list[str] | None
             کدِ صفحه‌یِ نماد
+        last_records : int , default 0 
+            تعداد رکورد های تاریخی از زمان کنونی به گذشته که میخوای استخراج بشه. اگه 0 باشه، تمام رکورد های تاریخی استخراج میشه.
 
-        start: str, default None
-            تاریخِ شروع(جلالی).
-            اگه هیچی داده نشه، داده‌ها از روزِ اول استخراج می‌شن.
-                format: 'yyyymmdd', 'yyyy-mm-dd', 'yyyy/mm/dd', e.g. '1402-05-25'
-
-        end: str
-            تاریخِ پایان(جلالی).
-            اگه هیچی داده نشه، داده‌ها تا روزِ آخر استخراج می‌شن.
-                format: 'yyyymmdd', 'yyyy-mm-dd', 'yyyy/mm/dd', e.g. '1402-08-05'
 
         Returns
         -------
@@ -891,7 +879,7 @@ class TSETMC:
         if isinstance(ins_code, str):
             ins_code = [ins_code]
 
-        df = self.hist_price(ins_code=ins_code)
+        df = self.hist_price(ins_code=ins_code , last_records = last_records )
         df = (
             df.sort("date")
             .with_columns(
@@ -1621,8 +1609,23 @@ class TSETMC:
         return df
 
 
+    def shareholder_other_shares(self , shareholder_id: str) :
+        url = self.url.shareholder_other_shares( shareholder_id  ) 
+        print(url)
+        resp = self.requests(url) 
+        print(resp)
+        df = pl.DataFrame()
+        for r in resp['shareHolderShare']: 
+            ins_code = r['instrument']['insCode']
+            symbol = r['instrument']['lVal30AFC']
+            pct_shares = r['pctShares']
 
+            df_ = pl.DataFrame(
+                [ins_code , symbol , pct_shares ]
+            )
+            df = pl.concat([df, df_])   
 
+    
 
     def adjust_price_flow(self, last_records: int):
         """
