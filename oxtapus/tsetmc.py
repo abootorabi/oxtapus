@@ -16,7 +16,7 @@ from oxtapus.models.tsetmc import (
     MarketWatch,
     OrderBook,
     Shareholder,
-    ShareholderHistory
+    ShareholderHistory,
 )
 from oxtapus.utils import (
     cols,
@@ -41,6 +41,50 @@ class MWSections(str, Enum):
     futures = "futures"
     etf = "etf"
     commodity = "commodity"
+
+
+_MW_SECTION_CLASSIFIERS = {
+    # IRBK is a commodity prefix, so commodity must precede the broad IRB debt rule.
+    MWSections.commodity: (
+        frozenset({"200", "201", "308", "701", "801", "802", "803"}),
+        ("IRBK", "IRK1"),
+    ),
+    MWSections.stock: (frozenset({"300", "303", "313"}), ("IRO1", "IRO3", "IRO5")),
+    MWSections.ifb_paye: (frozenset({"309"}), ("IRO7",)),
+    MWSections.mortgage: (frozenset({"307"}), ("IRO6",)),
+    MWSections.cum_right: (
+        frozenset({"400", "401", "402", "403", "404"}),
+        ("IRR",),
+    ),
+    MWSections.bond: (
+        frozenset({"206", "208", "301", "306", "706"}),
+        ("IRB",),
+    ),
+    MWSections.options: (
+        frozenset({"311", "312", "320", "321"}),
+        ("IRO9", "IROF", "IROA", "IROB"),
+    ),
+    MWSections.futures: (frozenset({"304"}), ("IRO4",)),
+    MWSections.etf: (frozenset({"305", "315", "380"}), ("IRT",)),
+}
+
+
+def _classify_market_watch(
+    instrument_type: str | None, ins_id: str | None
+) -> MWSections | None:
+    if instrument_type:
+        instrument_type = instrument_type.strip()
+        for section, (instrument_types, _) in _MW_SECTION_CLASSIFIERS.items():
+            if instrument_type in instrument_types:
+                return section
+        return None
+
+    if ins_id:
+        ins_id = ins_id.upper()
+        for section, (_, prefixes) in _MW_SECTION_CLASSIFIERS.items():
+            if ins_id.startswith(prefixes):
+                return section
+    return None
 
 
 class URL:
@@ -345,12 +389,24 @@ class TSETMC:
         """
         r = self.requests(self.url.mw(sections), response="json")[0].get("marketwatch")
         r_client_type = self.requests(self.url.client_type_all())[0]["clientTypeAllDto"]
+        if isinstance(sections, str):
+            sections = [sections]
+        requested_sections = {MWSections(section) for section in sections}
+        market_watch = [MarketWatch.model_validate(item) for item in r]
+        market_watch = [
+            item
+            for item in market_watch
+            if _classify_market_watch(item.instrument_type, item.ins_id)
+            in requested_sections
+        ]
         records = json_normalize(
-            data=[MarketWatch.model_validate(i).model_dump() for i in r],
+            data=[item.model_dump() for item in market_watch],
             record_path="order_book",
         )
         df = pl.DataFrame(records)
         df_ct = pl.from_dicts([ClientTypeAll(**i).model_dump() for i in r_client_type])
+        if df.is_empty():
+            return df
         df = df.join(df_ct, on=["ins_code"], how="left")
         return df
 

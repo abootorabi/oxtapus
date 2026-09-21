@@ -30,6 +30,8 @@ class ClientTypeAll(BaseModel):
 class MarketWatch(BaseModel):
     ins_code: str = Field(alias="insCode")
     ins_id: str = Field(alias="insID")
+    instrument_type: Optional[str] = Field(default=None, alias="yVal")
+    market_code: Optional[int] = Field(default=None, alias="flow")
     symbol: str = Field(alias="lva")
     name: str = Field(alias="lvc")
     eps: float = Field(alias="eps")
@@ -99,6 +101,7 @@ class InsInfo(BaseModel):
     ins_code: str = Field(alias="insCode")
     ins_id: str = Field(alias="instrumentID")
     isin: str = Field(alias="cIsin")
+    instrument_type: Optional[str] = Field(default=None, alias="yVal")
     symbol: str = Field(alias="lVal18AFC")
     name: str = Field(alias="lVal30")
     name_en: str = Field(alias="lVal18")
