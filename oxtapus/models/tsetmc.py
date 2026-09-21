@@ -54,6 +54,10 @@ class MarketWatch(BaseModel):
     event_time: float = Field(alias="hEven")
     order_book: list[MarketWatchOrderBook] = Field(alias="blDs")
 
+    @field_validator("instrument_type", mode="before")
+    def parse_instrument_type(cls, value):
+        return str(value) if value is not None else None
+
     @field_validator("pe", mode="before")
     def parce_pe(cls, value):
         try:

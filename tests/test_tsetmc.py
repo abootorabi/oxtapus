@@ -9,7 +9,7 @@ def market_watch_record(
     ins_code: str,
     ins_id: str,
     symbol: str,
-    instrument_type: str | None = None,
+    instrument_type: str | int | None = None,
     market_code: int | None = None,
 ):
     record = {
@@ -132,6 +132,13 @@ class TestMarketWatchModels(unittest.TestCase):
         self.assertEqual(current.instrument_type, "400")
         self.assertEqual(current.market_code, 1)
 
+    def test_market_watch_normalizes_numeric_instrument_type(self):
+        current = MarketWatch.model_validate(
+            market_watch_record("1", "IRB3TEST0001", "bond", 301, 2)
+        )
+
+        self.assertEqual(current.instrument_type, "301")
+
     def test_ins_info_declares_optional_instrument_type(self):
         field = InsInfo.model_fields["instrument_type"]
 
@@ -166,7 +173,7 @@ class TestMarketWatchFiltering(unittest.TestCase):
 
     def test_mw_keeps_union_of_requested_sections(self):
         records = [
-            market_watch_record("1", "IRO1TEST0001", "stock", "300", 1),
+            market_watch_record("1", "IRO1TEST0001", "stock", 300, 1),
             market_watch_record("2", "IRT1TEST0001", "fund", "305", 2),
             market_watch_record("3", "IRB3TEST0001", "bond", "301", 2),
         ]
